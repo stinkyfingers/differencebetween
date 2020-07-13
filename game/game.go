@@ -59,6 +59,8 @@ const (
 	differenceBetweenCardsBucket = "differencebetween"
 	setupsKey                    = "setups.txt"
 	punchlinesKey                = "punchlines.txt"
+	setupsCleanKey               = "setups_clean.txt"
+	punchlinesCleanKey           = "punchlines_clean.txt"
 
 	region = "us-west-1"
 
@@ -88,8 +90,12 @@ func init() {
 	s3Client = s3.New(sess)
 }
 
-func NewGame(player Player, rounds int) (*Game, error) {
-	punchlines, err := getPunchlines()
+func NewGame(player Player, rounds int, isClean bool) (*Game, error) {
+	punchlines, err := getPunchlines(isClean)
+	if err != nil {
+		return nil, err
+	}
+	setups, err := getSetups(isClean)
 	if err != nil {
 		return nil, err
 	}
@@ -104,7 +110,7 @@ func NewGame(player Player, rounds int) (*Game, error) {
 		RoundsRemaining: rounds,
 		CurrentAction:   PLAY,
 	}
-	err = g.createRounds()
+	err = g.createRounds(setups)
 	if err != nil {
 		return nil, err
 	}
@@ -140,12 +146,7 @@ func findID() (int, error) {
 	return 0, ErrNoGamesAvailable
 }
 
-func (g *Game) createRounds() error {
-	setups, err := getSetups()
-	if err != nil {
-		return err
-	}
-
+func (g *Game) createRounds(setups []Card) error {
 	setupsNeeded := g.RoundsRemaining * 2
 	if setupsNeeded > len(setups) {
 		return ErrTooFewSetups
@@ -167,12 +168,20 @@ func (g *Game) createRounds() error {
 	return nil
 }
 
-func getSetups() ([]Card, error) {
-	return getCards(setupsKey)
+func getSetups(isClean bool) ([]Card, error) {
+	key := setupsKey
+	if isClean {
+		key = setupsCleanKey
+	}
+	return getCards(key)
 }
 
-func getPunchlines() ([]Card, error) {
-	return getCards(punchlinesKey)
+func getPunchlines(isClean bool) ([]Card, error) {
+	key := punchlinesKey
+	if isClean {
+		key = punchlinesCleanKey
+	}
+	return getCards(key)
 }
 
 func getCards(key string) ([]Card, error) {
