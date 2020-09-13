@@ -12,19 +12,30 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestGetCards(t *testing.T) {
+func TestGetCardsCsv(t *testing.T) {
 	tests := []struct {
 		s3Client      s3iface.S3API
+		cleanliness   string
 		expectedCards []Card
 		expectedError string
 	}{
 		{
 			s3Client: &testingsupport.S3{
 				GetObjectOutput: &s3.GetObjectOutput{
-					Body: ioutil.NopCloser(strings.NewReader("test\ntest2\n")),
+					Body: ioutil.NopCloser(strings.NewReader("test,R\ntest2,R\ntest3,G")),
 				},
 			},
-			expectedCards: []Card{Card("test"), Card("test2")},
+			cleanliness:   "R",
+			expectedCards: []Card{Card("test"), Card("test2"), Card("test3")},
+		},
+		{
+			s3Client: &testingsupport.S3{
+				GetObjectOutput: &s3.GetObjectOutput{
+					Body: ioutil.NopCloser(strings.NewReader("test,R\ntest2,R\ntest3,G")),
+				},
+			},
+			cleanliness:   "G",
+			expectedCards: []Card{Card("test3")},
 		},
 		{
 			s3Client: &testingsupport.S3{
@@ -36,7 +47,7 @@ func TestGetCards(t *testing.T) {
 	}
 	for _, test := range tests {
 		s3Client = test.s3Client
-		cards, err := getCards("test_key")
+		cards, err := getCardsCsv("setups", test.cleanliness)
 		if test.expectedError != "" {
 			assert.EqualError(t, err, test.expectedError)
 		} else {
@@ -50,13 +61,15 @@ func TestCreateRounds(t *testing.T) {
 	g := Game{
 		RoundsRemaining: 3,
 	}
-	s3Client = &testingsupport.S3{
-		GetObjectOutput: &s3.GetObjectOutput{
-			Body: ioutil.NopCloser(strings.NewReader("test1\ntest2\ntest3\ntest4\ntest5\ntest6\n")),
-		},
+	cards := []Card{
+		"test1",
+		"test2",
+		"test3",
+		"test4",
+		"test5",
+		"test6",
 	}
-
-	err := g.createRounds()
+	err := g.createRounds(cards)
 	if err != nil {
 		t.Error(err)
 	}
@@ -78,7 +91,11 @@ func TestErrCreateRounds(t *testing.T) {
 			Body: ioutil.NopCloser(strings.NewReader("test1\n")),
 		},
 	}
-	err := g.createRounds()
+	cards := []Card{
+		"test1",
+		"test2",
+	}
+	err := g.createRounds(cards)
 	if err != ErrTooFewSetups {
 		t.Errorf("expected ErrTooFewSetups, got %v", err)
 	}
@@ -138,7 +155,7 @@ func TestDealPunchlines(t *testing.T) {
 
 func TestLive(t *testing.T) {
 	t.Skip("skip live test")
-	setups, err := getSetups()
+	setups, err := getSetups("R")
 	if err != nil {
 		t.Error(err)
 	}

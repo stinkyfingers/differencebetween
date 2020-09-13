@@ -28,11 +28,11 @@ func CreateGame(w http.ResponseWriter, r *http.Request) {
 		HTTPError(w, err)
 		return
 	}
-	var clean bool
+	cleanliness := "R"
 	if r.URL.Query().Get("pg") == "true" {
-		clean = true
+		cleanliness = "PG"
 	}
-	g, err := game.NewGame(game.Player{Name: gameRequest.Player}, gameRequest.Rounds, clean)
+	g, err := game.NewGame(game.Player{Name: gameRequest.Player}, gameRequest.Rounds, cleanliness)
 	if err != nil {
 		HTTPError(w, err)
 		return

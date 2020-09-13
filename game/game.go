@@ -1,7 +1,7 @@
 package game
 
 import (
-	"bufio"
+	"encoding/csv"
 	"errors"
 	"io"
 	"log"
@@ -51,6 +51,7 @@ var (
 	ErrTooFewSetups     = errors.New("not enough setup cards")
 	ErrTooFewPunchlines = errors.New("not enough punchline cards")
 	ErrNoGamesAvailable = errors.New("no game ids are available")
+	ErrMalformedCSV     = errors.New("malformed csv file")
 
 	games = make(map[int]*Game)
 )
@@ -61,6 +62,9 @@ const (
 	punchlinesKey                = "punchlines.txt"
 	setupsCleanKey               = "setups_clean.txt"
 	punchlinesCleanKey           = "punchlines_clean.txt"
+
+	setupsFile     = "setups.csv"
+	punchlinesFile = "punchlines.csv"
 
 	region = "us-west-1"
 
@@ -90,12 +94,13 @@ func init() {
 	s3Client = s3.New(sess)
 }
 
-func NewGame(player Player, rounds int, isClean bool) (*Game, error) {
-	punchlines, err := getPunchlines(isClean)
+func NewGame(player Player, rounds int, cleanliness string) (*Game, error) {
+	punchlines, err := getPunchlines(cleanliness)
 	if err != nil {
 		return nil, err
 	}
-	setups, err := getSetups(isClean)
+	setups, err := getSetups(cleanliness)
+
 	if err != nil {
 		return nil, err
 	}
@@ -118,7 +123,6 @@ func NewGame(player Player, rounds int, isClean bool) (*Game, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	games[g.ID] = g
 	return g, nil
 }
@@ -168,23 +172,15 @@ func (g *Game) createRounds(setups []Card) error {
 	return nil
 }
 
-func getSetups(isClean bool) ([]Card, error) {
-	key := setupsKey
-	if isClean {
-		key = setupsCleanKey
-	}
-	return getCards(key)
+func getSetups(cleanliness string) ([]Card, error) {
+	return getCardsCsv(setupsFile, cleanliness)
 }
 
-func getPunchlines(isClean bool) ([]Card, error) {
-	key := punchlinesKey
-	if isClean {
-		key = punchlinesCleanKey
-	}
-	return getCards(key)
+func getPunchlines(cleanliness string) ([]Card, error) {
+	return getCardsCsv(punchlinesFile, cleanliness)
 }
 
-func getCards(key string) ([]Card, error) {
+func getCardsCsv(key, cleanliness string) ([]Card, error) {
 	var cards []Card
 	resp, err := s3Client.GetObject(&s3.GetObjectInput{
 		Bucket: aws.String(differenceBetweenCardsBucket),
@@ -193,18 +189,52 @@ func getCards(key string) ([]Card, error) {
 	if err != nil {
 		return nil, err
 	}
-	reader := bufio.NewReader(resp.Body)
+	reader := csv.NewReader(resp.Body)
 	for {
-		phrase, err := reader.ReadString('\n')
+		line, err := reader.Read()
 		if err != nil {
 			if err == io.EOF {
 				break
 			}
 			return nil, err
 		}
-		cards = append(cards, Card(strings.TrimSpace(phrase)))
+		if len(line) != 2 {
+			return nil, ErrMalformedCSV
+		}
+		cleanEnough, err := isCleanEnough(line[1], cleanliness)
+		if err != nil {
+			return nil, err
+		}
+		if !cleanEnough {
+			continue
+		}
+		cards = append(cards, Card(strings.TrimSpace(line[0])))
 	}
 	return cards, nil
+}
+
+func isCleanEnough(cardCleanliness, cleanliness string) (bool, error) {
+	var ok bool
+	var cardRank, rank int
+	ranks := map[string]int{
+		"G":     0,
+		"PG":    1,
+		"PG-13": 2,
+		"R":     3,
+		"X":     4,
+	}
+	cardRank, ok = ranks[cardCleanliness]
+	if !ok {
+		return false, ErrMalformedCSV
+	}
+	rank, ok = ranks[cleanliness]
+	if !ok {
+		return false, ErrMalformedCSV
+	}
+	if cardRank <= rank {
+		return true, nil
+	}
+	return false, nil
 }
 
 func (g *Game) AddPlayer(player Player) error {
