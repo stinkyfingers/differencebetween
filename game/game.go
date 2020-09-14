@@ -43,6 +43,7 @@ type Play struct {
 	Name      string `json:"name"`
 	Punchline Card   `json:"punchline"`
 	Vote      Card   `json:"vote"`
+	Ping      string `json:"ping"`
 }
 
 var (

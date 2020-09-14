@@ -128,7 +128,9 @@ func (gc *GameConn) read(hub *Hub) error {
 		if err != nil {
 			return err
 		}
-		if p.Vote != "" && g.CurrentAction == game.VOTE {
+		if p.Ping != "" {
+			// ping noop
+		} else if p.Vote != "" && g.CurrentAction == game.VOTE {
 			g.Vote(p.Name, p.Vote)
 		} else if p.Punchline != "" && g.CurrentAction == game.PLAY {
 			g.Play(p.Name, p.Punchline)
