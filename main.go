@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
 
 	"github.com/stinkyfingers/differencebetween/api/handlers"
@@ -10,7 +11,7 @@ import (
 )
 
 var (
-	port = "7000"
+	port = "7777"
 )
 
 var (
@@ -56,5 +57,5 @@ func main() {
 		Middlewares: []easyrouter.Middleware{handlers.Cors},
 	}
 
-	s.Run()
+	log.Fatal(s.Run())
 }

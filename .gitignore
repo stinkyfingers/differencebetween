@@ -1,3 +1,5 @@
 scripts
 gitbak
 terraform/.terraform
+.idea
+vendor
